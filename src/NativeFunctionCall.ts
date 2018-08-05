@@ -5,45 +5,61 @@ import {Path} from './Path';
 import {InkList, InkListItem} from './InkList';
 import {InkObject} from './Object';
 import {asOrNull, asOrThrows} from './TypeAssertion';
+import {throwNullException} from './NullException';
+
+// type BinaryOp<T> = (left: T, right: T) => any;
+// type UnaryOp<T> = (val: T) => any;
+// namespace NativeFunctionCall{
+interface BinaryOp<T> {
+	(left: T, right: T): any;
+}
+
+interface UnaryOp<T> {
+	(val: T): any;
+}
+// }
 
 export class NativeFunctionCall extends InkObject{
-  public readonly Add: string 		= '+';
-  public readonly Subtract: string = '-';
-  public readonly Divide: string   = '/';
-  public readonly Multiply: string = '*';
-  public readonly Mod: string      = '%';
-  public readonly Negate: string   = '_';
-  public readonly Equal: string    = '==';
-  public readonly Greater: string  = '>';
-  public readonly Less: string     = '<';
-  public readonly GreaterThanOrEquals: string = '>=';
-  public readonly LessThanOrEquals: string = '<=';
-  public readonly NotEquals: string   = '!=';
-  public readonly Not: string      = '!';
-  public readonly And: string      = '&&';
-  public readonly Or: string       = '||';
-  public readonly Min: string      = 'MIN';
-  public readonly Max: string      = 'MAX';
-  public readonly Has: string      = '?';
-  public readonly Hasnt: string    = '!?';
-  public readonly Intersect: string = '^';
-  public readonly ListMin: string   = 'LIST_MIN';
-  public readonly ListMax: string   = 'LIST_MAX';
-  public readonly All: string       = 'LIST_ALL';
-  public readonly Count: string     = 'LIST_COUNT';
-  public readonly ValueOfList: string = 'LIST_VALUE';
-  public readonly Invert: string    = 'LIST_INVERT';
+	// tslint:disable:variable-name
+	public static readonly Add: string 		= '+';
+	public static readonly Subtract: string = '-';
+	public static readonly Divide: string   = '/';
+	public static readonly Multiply: string = '*';
+	public static readonly Mod: string      = '%';
+	public static readonly Negate: string   = '_';
+	public static readonly Equal: string    = '==';
+	public static readonly Greater: string  = '>';
+	public static readonly Less: string     = '<';
+	public static readonly GreaterThanOrEquals: string = '>=';
+	public static readonly LessThanOrEquals: string = '<=';
+	public static readonly NotEquals: string   = '!=';
+	public static readonly Not: string      = '!';
+	public static readonly And: string      = '&&';
+	public static readonly Or: string       = '||';
+	public static readonly Min: string      = 'MIN';
+	public static readonly Max: string      = 'MAX';
+	public static readonly Has: string      = '?';
+	public static readonly Hasnt: string    = '!?';
+	public static readonly Intersect: string = '^';
+	public static readonly ListMin: string   = 'LIST_MIN';
+	public static readonly ListMax: string   = 'LIST_MAX';
+	public static readonly All: string       = 'LIST_ALL';
+	public static readonly Count: string     = 'LIST_COUNT';
+	public static readonly ValueOfList: string = 'LIST_VALUE';
+	public static readonly Invert: string    = 'LIST_INVERT';
+	// tslint:enable:variable-name
 
-  public static CallWithName(functionName: string){
+	public static CallWithName(functionName: string){
 		return new NativeFunctionCall(functionName);
 	}
 
-  public static CallExistsWithName(functionName: string){
+	public static CallExistsWithName(functionName: string){
 		this.GenerateNativeFunctionsIfNecessary();
 		return this._nativeFunctions[functionName];
 	}
 
-  get name(){
+	get name(){
+		if (this._name === null) return throwNullException('NativeFunctionCall._name');
 		return this._name;
 	}
 	set name(value: string){
@@ -51,21 +67,22 @@ export class NativeFunctionCall extends InkObject{
 		if( !this._isPrototype )
 			this._prototype = NativeFunctionCall._nativeFunctions[this._name];
 	}
-  public _name: string;
+	public _name: string | null = null;
 
-  get numberOfParameters(){
+	get numberOfParameters(){
 		if (this._prototype) {
 			return this._prototype.numberOfParameters;
 		} else {
+			if (this._numberOfParameters === null) return throwNullException('NativeFunctionCall._numberOfParameters');
 			return this._numberOfParameters;
 		}
 	}
 	set numberOfParameters(value: number){
 		this._numberOfParameters = value;
 	}
-  public _numberOfParameters: number;
+	public _numberOfParameters: number | null = null;
 
-  public Call(parameters: InkObject[]){
+	public Call(parameters: InkObject[]): InkObject | null{
 		if (this._prototype) {
 			return this._prototype.Call(parameters);
 		}
@@ -103,11 +120,11 @@ export class NativeFunctionCall extends InkObject{
 		return null;
 	}
 
-  public CallT<T>(parametersOfSingleType: Value[]){
+	public CallT<T>(parametersOfSingleType: Value[]){
 		let param1 = parametersOfSingleType[0];
 		let valType = param1.valueType;
 
-		let val1 = param1;
+		let val1 = asOrThrows(param1, Value<T>);
 
 		let paramCount = parametersOfSingleType.length;
 
@@ -148,7 +165,7 @@ export class NativeFunctionCall extends InkObject{
 		}
 	}
 
-  public CallBinaryListOperation(parameters: InkObject[]){
+	public CallBinaryListOperation(parameters: InkObject[]){
 		if ((this.name == '+' || this.name == '-') && parameters[0] instanceof ListValue && parameters[1] instanceof IntValue)
 			return this.CallListIncrementOperation(parameters);
 
@@ -156,7 +173,9 @@ export class NativeFunctionCall extends InkObject{
 		let v2 = asOrNull(parameters[1], Value);
 
 		if ((this.name == '&&' || this.name == '||') && (v1.valueType != ValueType.List || v2.valueType != ValueType.List)) {
-			let op = asOrNull(this._operationFuncs[ValueType.Int], BinaryOp<number>);
+			if (this._operationFuncs === null) return throwNullException('NativeFunctionCall._operationFuncs');
+			let op = asOrNull(this._operationFuncs.get(ValueType.Int), BinaryOp);
+			if (op === null) return throwNullException('NativeFunctionCall.CallBinaryListOperation op');
 			let result = op(v1.isTruthy ? 1 : 0, v2.isTruthy ? 1 : 0);
 			return new IntValue(result);
 		}
@@ -167,22 +186,23 @@ export class NativeFunctionCall extends InkObject{
 		throw new StoryException('Can not call use ' + this.name + ' operation on ' + v1.valueType + ' and ' + v2.valueType);
 	}
 
-  public CallListIncrementOperation(listIntParams: InkObject[]){
+	public CallListIncrementOperation(listIntParams: InkObject[]){
 		let listVal = asOrThrows(listIntParams[0], ListValue);
 		let intVal = asOrThrows(listIntParams[1], IntValue);
 
 		let resultInkList = new InkList();
 
-		for (const [listItemKey, listItemValue] of listVal.value) {
-			const listItem = InkListItem.fromSerializedKey(listItemKey);
-			// Find + or - operation
-			let intOp = this._operationFuncs[ValueType.Int];
+		if (listVal.value === null) return throwNullException('NativeFunctionCall.CallListIncrementOperation listVal.value');
+		for (let [listItemKey, listItemValue] of listVal.value) {
+			let listItem = InkListItem.fromSerializedKey(listItemKey);
 
-			// Return value unknown until it's evaluated
+			if (this._operationFuncs === null) return throwNullException('NativeFunctionCall._operationFuncs');
+			let intOp = asOrThrows(this._operationFuncs.get(ValueType.Int), BinaryOp);
+
 			let targetInt = intOp(listItemValue, intVal.value);
 
-			// Find this item's origin (linear search should be ok, should be short haha)
 			let itemOrigin = null;
+			if (listVal.value.origins === null) return throwNullException('NativeFunctionCall.CallListIncrementOperation listVal.value.origins');
 			for (const origin of listVal.value.origins) {
 				if (origin.name == listItem.originName) {
 					itemOrigin = origin;
@@ -190,7 +210,7 @@ export class NativeFunctionCall extends InkObject{
 				}
 			}
 			if (itemOrigin != null) {
-				let incrementedItem = itemOrigin.TryGetItemWithValue(targetInt);
+				let incrementedItem = itemOrigin.TryGetItemWithValue(targetInt, InkListItem.Null);
 				if (incrementedItem.exists)
 					resultInkList.Add(incrementedItem.result, targetInt);
 			}
@@ -199,10 +219,10 @@ export class NativeFunctionCall extends InkObject{
 		return new ListValue(resultInkList);
 	}
 
-  public CoerceValuesToSingleType(parametersIn: InkObject[]){
+	public CoerceValuesToSingleType(parametersIn: InkObject[]){
 		let valType = ValueType.Int;
 
-		let specialCaseList = null;
+		let specialCaseList: null | ListValue = null;
 
 		parametersIn.forEach((obj) => {
 			let val = asOrThrows(obj, Value);
@@ -220,11 +240,13 @@ export class NativeFunctionCall extends InkObject{
 
 		if (ValueType[valType] == ValueType[ValueType.List]) {
 			for (let val of parametersIn){
-		val = asOrThrows(val, Value);
-				    if (val.valueType == ValueType.List) {
+				val = asOrThrows(val, Value);
+				if (val.valueType == ValueType.List) {
 					parametersOut.push(val);
 				} else if (val.valueType == ValueType.Int) {
 					let intVal = parseInt(val.valueObject);
+
+					if (specialCaseList === null) return throwNullException('NativeFunctionCall.CoerceValuesToSingleType specialCaseList');
 					let list = specialCaseList.value.originOfMaxItem;
 
 					let item = list.TryGetItemWithValue(intVal);
@@ -240,181 +262,169 @@ export class NativeFunctionCall extends InkObject{
 
 		else {
 			for (let val of parametersIn){
-		val = asOrThrows(val, Value);
-				    let castedValue = val.Cast(valType);
-				    parametersOut.push(castedValue);
+				val = asOrThrows(val, Value);
+				let castedValue = val.Cast(valType);
+				parametersOut.push(castedValue);
 			}
 		}
 
 		return parametersOut;
 	}
 
-	// constructor(name){
-	// 	super();
-	// 	this.name = name;
-	// 	this._numberOfParameters;
-  //
-	// 	this._prototype;
-	// 	this._isPrototype;
-	// 	this._operationFuncs = null;
-  //
-  //
-	// }
+	// tslint:disable:unified-signatures
+	constructor(name: string);
+	constructor();
+	constructor(name?: string) {
+		super();
+		NativeFunctionCall.GenerateNativeFunctionsIfNecessary();
+		if (name) this.name = name;
+	}
 
-  // tslint:disable:unified-signatures
-  constructor(name: string);
-  constructor();
-  constructor(name?: string) {
-	super();
-	NativeFunctionCall.GenerateNativeFunctionsIfNecessary();
-	if (name) this.name = name;
-  }
+	public static internalConstructor(name: string, numberOfParamters: number): NativeFunctionCall{
+		let nativeFunc = new NativeFunctionCall(name);
+		nativeFunc._isPrototype = true;
+		nativeFunc.numberOfParameters = numberOfParamters;
+		return nativeFunc;
+	}
 
-  public static GenerateNativeFunctionsIfNecessary(){
+	public static GenerateNativeFunctionsIfNecessary(){
 		if (this._nativeFunctions == null) {
-			this._nativeFunctions = {};
+			this._nativeFunctions = new Map();
 
 			// Int operations
-			this.AddIntBinaryOp(this.Add,      (x, y) =>x + y);
-			this.AddIntBinaryOp(this.Subtract, (x, y) =>x - y);
-			this.AddIntBinaryOp(this.Multiply, (x, y) =>x * y);
-			this.AddIntBinaryOp(this.Divide,   (x, y) =>parseInt(x / y));
-			this.AddIntBinaryOp(this.Mod,      (x, y) =>x % y);
-			this.AddIntUnaryOp(this.Negate,   (x) =>-x);
+			this.AddIntBinaryOp(this.Add,      (x, y) => x + y);
+			this.AddIntBinaryOp(this.Subtract, (x, y) => x - y);
+			this.AddIntBinaryOp(this.Multiply, (x, y) => x * y);
+			this.AddIntBinaryOp(this.Divide,   (x, y) => Math.round(x / y));
+			this.AddIntBinaryOp(this.Mod,      (x, y) => x % y);
+			this.AddIntUnaryOp(this.Negate,   (x) => -x);
 
-			this.AddIntBinaryOp(this.Equal,    (x, y) =>x == y ? 1 : 0);
-			this.AddIntBinaryOp(this.Greater,  (x, y) =>x > y  ? 1 : 0);
-			this.AddIntBinaryOp(this.Less,     (x, y) =>x < y  ? 1 : 0);
-			this.AddIntBinaryOp(this.GreaterThanOrEquals, (x, y) =>x >= y ? 1 : 0);
-			this.AddIntBinaryOp(this.LessThanOrEquals, (x, y) =>x <= y ? 1 : 0);
-			this.AddIntBinaryOp(this.NotEquals, (x, y) =>x != y ? 1 : 0);
-			this.AddIntUnaryOp(this.Not,       (x) =>(x == 0) ? 1 : 0);
+			this.AddIntBinaryOp(this.Equal,    (x, y) => x == y ? 1 : 0);
+			this.AddIntBinaryOp(this.Greater,  (x, y) => x > y  ? 1 : 0);
+			this.AddIntBinaryOp(this.Less,     (x, y) => x < y  ? 1 : 0);
+			this.AddIntBinaryOp(this.GreaterThanOrEquals, (x, y) => x >= y ? 1 : 0);
+			this.AddIntBinaryOp(this.LessThanOrEquals, (x, y) => x <= y ? 1 : 0);
+			this.AddIntBinaryOp(this.NotEquals, (x, y) => x != y ? 1 : 0);
+			this.AddIntUnaryOp(this.Not,       (x) => (x == 0) ? 1 : 0);
 
-			this.AddIntBinaryOp(this.And,      (x, y) =>x != 0 && y != 0 ? 1 : 0);
-			this.AddIntBinaryOp(this.Or,       (x, y) =>x != 0 || y != 0 ? 1 : 0);
+			this.AddIntBinaryOp(this.And,      (x, y) => x != 0 && y != 0 ? 1 : 0);
+			this.AddIntBinaryOp(this.Or,       (x, y) => x != 0 || y != 0 ? 1 : 0);
 
-			this.AddIntBinaryOp(this.Max,      (x, y) =>Math.max(x, y));
-			this.AddIntBinaryOp(this.Min,      (x, y) =>Math.min(x, y));
+			this.AddIntBinaryOp(this.Max,      (x, y) => Math.max(x, y));
+			this.AddIntBinaryOp(this.Min,      (x, y) => Math.min(x, y));
 
 			// Float operations
-			this.AddFloatBinaryOp(this.Add,      (x, y) =>x + y);
-			this.AddFloatBinaryOp(this.Subtract, (x, y) =>x - y);
-			this.AddFloatBinaryOp(this.Multiply, (x, y) =>x * y);
-			this.AddFloatBinaryOp(this.Divide,   (x, y) =>x / y);
-			this.AddFloatBinaryOp(this.Mod,      (x, y) =>x % y); // TODO: Is this the operation we want for floats?
-			this.AddFloatUnaryOp(this.Negate,   (x) =>-x);
+			this.AddFloatBinaryOp(this.Add,      (x, y) => x + y);
+			this.AddFloatBinaryOp(this.Subtract, (x, y) => x - y);
+			this.AddFloatBinaryOp(this.Multiply, (x, y) => x * y);
+			this.AddFloatBinaryOp(this.Divide,   (x, y) => x / y);
+			this.AddFloatBinaryOp(this.Mod,      (x, y) => x % y);
+			this.AddFloatUnaryOp(this.Negate,   (x) => -x);
 
-			this.AddFloatBinaryOp(this.Equal,    (x, y) =>x == y ? 1 : 0);
-			this.AddFloatBinaryOp(this.Greater,  (x, y) =>x > y  ? 1 : 0);
-			this.AddFloatBinaryOp(this.Less,     (x, y) =>x < y  ? 1 : 0);
-			this.AddFloatBinaryOp(this.GreaterThanOrEquals, (x, y) =>x >= y ? 1 : 0);
-			this.AddFloatBinaryOp(this.LessThanOrEquals, (x, y) =>x <= y ? 1 : 0);
-			this.AddFloatBinaryOp(this.NotEquals, (x, y) =>x != y ? 1 : 0);
-			this.AddFloatUnaryOp(this.Not,       (x) =>(x == 0.0) ? 1 : 0);
+			this.AddFloatBinaryOp(this.Equal,    (x, y) => x == y ? 1 : 0);
+			this.AddFloatBinaryOp(this.Greater,  (x, y) => x > y  ? 1 : 0);
+			this.AddFloatBinaryOp(this.Less,     (x, y) => x < y  ? 1 : 0);
+			this.AddFloatBinaryOp(this.GreaterThanOrEquals, (x, y) => x >= y ? 1 : 0);
+			this.AddFloatBinaryOp(this.LessThanOrEquals, (x, y) => x <= y ? 1 : 0);
+			this.AddFloatBinaryOp(this.NotEquals, (x, y) => x != y ? 1 : 0);
+			this.AddFloatUnaryOp(this.Not,       (x) => (x == 0.0) ? 1 : 0);
 
-			this.AddFloatBinaryOp(this.And,      (x, y) =>x != 0.0 && y != 0.0 ? 1 : 0);
-			this.AddFloatBinaryOp(this.Or,       (x, y) =>x != 0.0 || y != 0.0 ? 1 : 0);
+			this.AddFloatBinaryOp(this.And,      (x, y) => x != 0.0 && y != 0.0 ? 1 : 0);
+			this.AddFloatBinaryOp(this.Or,       (x, y) => x != 0.0 || y != 0.0 ? 1 : 0);
 
-			this.AddFloatBinaryOp(this.Max,      (x, y) =>Math.max(x, y));
-			this.AddFloatBinaryOp(this.Min,      (x, y) =>Math.min(x, y));
+			this.AddFloatBinaryOp(this.Max,      (x, y) => Math.max(x, y));
+			this.AddFloatBinaryOp(this.Min,      (x, y) => Math.min(x, y));
 
 			// String operations
-			this.AddStringBinaryOp(this.Add,     	(x, y) =>x + y); // concat
-			this.AddStringBinaryOp(this.Equal,   	(x, y) =>x === y ? 1 : 0);
-			this.AddStringBinaryOp(this.NotEquals,(x, y) =>!(x === y) ? 1 : 0);
-			this.AddStringBinaryOp(this.Has,      (x, y) =>x.includes(y) ? 1 : 0);
-			this.AddStringBinaryOp(this.Hasnt,      (x, y) =>x.includes(y) ? 0 : 1);
+			this.AddStringBinaryOp(this.Add,     	(x, y) => x + y); // concat
+			this.AddStringBinaryOp(this.Equal,   	(x, y) => x === y ? 1 : 0);
+			this.AddStringBinaryOp(this.NotEquals,(x, y) => !(x === y) ? 1 : 0);
+			this.AddStringBinaryOp(this.Has,      (x, y) => x.includes(y) ? 1 : 0);
+			this.AddStringBinaryOp(this.Hasnt,      (x, y) => x.includes(y) ? 0 : 1);
 
-			this.AddListBinaryOp(this.Add, 		 (x, y) =>x.Union(y));
-			this.AddListBinaryOp(this.Subtract,  (x, y) =>x.Without(y));
-			this.AddListBinaryOp(this.Has, 		 (x, y) =>x.Contains(y) ? 1 : 0);
-			this.AddListBinaryOp(this.Hasnt, 	 (x, y) =>x.Contains(y) ? 0 : 1);
-			this.AddListBinaryOp(this.Intersect, (x, y) =>x.Intersect(y));
+			this.AddListBinaryOp(this.Add, 		 (x, y) => x.Union(y));
+			this.AddListBinaryOp(this.Subtract,  (x, y) => x.Without(y));
+			this.AddListBinaryOp(this.Has, 		 (x, y) => x.Contains(y) ? 1 : 0);
+			this.AddListBinaryOp(this.Hasnt, 	 (x, y) => x.Contains(y) ? 0 : 1);
+			this.AddListBinaryOp(this.Intersect, (x, y) => x.Intersect(y));
 
-			this.AddListBinaryOp(this.Equal, 				(x, y) =>x.Equals(y) ? 1 : 0);
-			this.AddListBinaryOp(this.Greater, 				(x, y) =>x.GreaterThan(y) ? 1 : 0);
-			this.AddListBinaryOp(this.Less, 				(x, y) =>x.LessThan(y) ? 1 : 0);
-			this.AddListBinaryOp(this.GreaterThanOrEquals, 	(x, y) =>x.GreaterThanOrEquals(y) ? 1 : 0);
-			this.AddListBinaryOp(this.LessThanOrEquals, 	(x, y) =>x.LessThanOrEquals(y) ? 1 : 0);
-			this.AddListBinaryOp(this.NotEquals, 			(x, y) =>!x.Equals(y) ? 1 : 0);
+			this.AddListBinaryOp(this.Equal, 				(x, y) => x.Equals(y) ? 1 : 0);
+			this.AddListBinaryOp(this.Greater, 				(x, y) => x.GreaterThan(y) ? 1 : 0);
+			this.AddListBinaryOp(this.Less, 				(x, y) => x.LessThan(y) ? 1 : 0);
+			this.AddListBinaryOp(this.GreaterThanOrEquals, 	(x, y) => x.GreaterThanOrEquals(y) ? 1 : 0);
+			this.AddListBinaryOp(this.LessThanOrEquals, 	(x, y) => x.LessThanOrEquals(y) ? 1 : 0);
+			this.AddListBinaryOp(this.NotEquals, 			(x, y) => !x.Equals(y) ? 1 : 0);
 
-			this.AddListBinaryOp (this.And, 				(x, y) =>x.Count > 0 && y.Count > 0 ? 1 : 0);
-   this.AddListBinaryOp (this.Or,  				(x, y) =>x.Count > 0 || y.Count > 0 ? 1 : 0);
+			this.AddListBinaryOp (this.And, 				(x, y) => x.Count > 0 && y.Count > 0 ? 1 : 0);
+			this.AddListBinaryOp (this.Or,  				(x, y) => x.Count > 0 || y.Count > 0 ? 1 : 0);
 
-			this.AddListUnaryOp(this.Not, (x) =>x.Count == 0 ? 1 : 0);
+			this.AddListUnaryOp(this.Not, (x) => x.Count == 0 ? 1 : 0);
 
-			this.AddListUnaryOp(this.Invert, (x) =>x.inverse);
-			this.AddListUnaryOp(this.All, (x) =>x.all);
-			this.AddListUnaryOp(this.ListMin, (x) =>x.MinAsList());
-			this.AddListUnaryOp(this.ListMax, (x) =>x.MaxAsList());
-			this.AddListUnaryOp(this.Count,  (x) =>x.Count);
-			this.AddListUnaryOp(this.ValueOfList,  (x) =>x.maxItem.Value);
+			this.AddListUnaryOp(this.Invert, (x) => x.inverse);
+			this.AddListUnaryOp(this.All, (x) => x.all);
+			this.AddListUnaryOp(this.ListMin, (x) => x.MinAsList());
+			this.AddListUnaryOp(this.ListMax, (x) => x.MaxAsList());
+			this.AddListUnaryOp(this.Count,  (x) => x.Count);
+			this.AddListUnaryOp(this.ValueOfList,  (x) => x.maxItem.Value);
 
-			// Special case: The only operation you can do on divert target values
-			let divertTargetsEqual = (d1, d2) => {
+			let divertTargetsEqual = (d1: Path, d2: Path) => {
 				return d1.Equals(d2) ? 1 : 0;
 			};
 			this.AddOpToNativeFunc(this.Equal, 2, ValueType.DivertTarget, divertTargetsEqual);
 		}
 	}
 
-  public AddOpFuncForType(valType: ValueType, op: object): void{
+	public AddOpFuncForType(valType: ValueType, op: UnaryOp<number | InkList> | BinaryOp<number | string | InkList | Path>): void{
 		if (this._operationFuncs == null) {
-			this._operationFuncs = {};
+			this._operationFuncs = new Map();
 		}
 
-		this._operationFuncs[valType] = op;
+		this._operationFuncs.set(valType, op);
 	}
 
-  public static AddOpToNativeFunc(name: string, args: number, valType: ValueType, op: object): void{
-		let nativeFunc = this._nativeFunctions[name];
+	public static AddOpToNativeFunc(name: string, args: number, valType: ValueType, op: UnaryOp<any> | BinaryOp<any>): void{
+		if (this._nativeFunctions === null) return throwNullException('NativeFunctionCall._nativeFunctions');
+		let nativeFunc = this._nativeFunctions.get(name);
 		if (!nativeFunc) {
 			nativeFunc = NativeFunctionCall.internalConstructor(name, args);
-			this._nativeFunctions[name] = nativeFunc;
+			this._nativeFunctions.set(name, nativeFunc);
 		}
 
 		nativeFunc.AddOpFuncForType(valType, op);
 	}
 
-  public static AddIntBinaryOp(name, op){
+	public static AddIntBinaryOp(name: string, op: BinaryOp<number>){
 		this.AddOpToNativeFunc(name, 2, ValueType.Int, op);
 	}
-	public static AddIntUnaryOp(name, op){
+	public static AddIntUnaryOp(name: string, op: UnaryOp<number>){
 		this.AddOpToNativeFunc(name, 1, ValueType.Int, op);
 	}
 
-	public static AddFloatBinaryOp(name, op){
+	public static AddFloatBinaryOp(name: string, op: BinaryOp<number>){
 		this.AddOpToNativeFunc(name, 2, ValueType.Float, op);
 	}
-	public static AddFloatUnaryOp(name, op){
+	public static AddFloatUnaryOp(name: string, op: UnaryOp<number>){
 		this.AddOpToNativeFunc(name, 1, ValueType.Float, op);
 	}
 
-	public static AddStringBinaryOp(name, op){
+	public static AddStringBinaryOp(name: string, op: BinaryOp<string>){
 		this.AddOpToNativeFunc(name, 2, ValueType.String, op);
 	}
 
-	public static AddListBinaryOp(name, op){
+	public static AddListBinaryOp(name: string, op: BinaryOp<InkList>){
 		this.AddOpToNativeFunc(name, 2, ValueType.List, op);
 	}
-	public static AddListUnaryOp(name, op){
+	public static AddListUnaryOp(name: string, op: UnaryOp<InkList>){
 		this.AddOpToNativeFunc(name, 1, ValueType.List, op);
 	}
 
-  public toString(){
+	public toString(){
 		return 'Native "' + this.name + '"';
 	}
 
-  public _prototype: NativeFunctionCall | null;
-  public _isPrototype: boolean = false;
-  public _operationFuncs: any;
-  public static _nativeFunctions: any;
-
-	// static internalConstructor(name, numberOfParamters){
-	// 	let nativeFunc = new NativeFunctionCall(name);
-	// 	nativeFunc._isPrototype = true;
-	// 	nativeFunc.numberOfParameters = numberOfParamters;
-	// 	return nativeFunc;
-	// }
+	public _prototype: NativeFunctionCall | null = null;
+	public _isPrototype: boolean = false;
+	public _operationFuncs: Map<ValueType, BinaryOp<any> | UnaryOp<any>> | null = null;
+	public static _nativeFunctions: Map<string, NativeFunctionCall> | null = null;
 
 }
